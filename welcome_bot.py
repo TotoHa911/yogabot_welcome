@@ -1,74 +1,64 @@
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import Updater, CommandHandler, CallbackContext, CallbackQueryHandler, MessageHandler, Filters
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Updater, CommandHandler, CallbackContext
+import os
 
-# ✅ Твой токен приветственного бота
 TOKEN = "8128088643:AAFX6vFLh8HAlcm_IxBS4DJzGdbyirQAiWc"
-
-# ✅ Твой канал и чат (без @)
-CHANNEL_USERNAME = "Doroga_k_Yoga"
-GROUP_USERNAME = "chatdorogakyoga"
+CHANNEL_ID = "-1002026202622"  # @Doroga_k_Yoga
+GROUP_ID = "-1001942632620"    # @chatdorogakyoga
 
 def start(update: Update, context: CallbackContext):
     user = update.effective_user
+    chat_id = update.effective_chat.id
 
-    buttons = [
-        [InlineKeyboardButton("📢 Подписаться на канал", url=f"https://t.me/{CHANNEL_USERNAME}")],
-        [InlineKeyboardButton("💬 Вступить в чат", url=f"https://t.me/{GROUP_USERNAME}")],
-        [InlineKeyboardButton("✅ Я подписался", callback_data="check_subs")]
-    ]
-    update.message.reply_text(
-        f"Привет, {user.first_name or 'друг'}! 🧘‍♀️\n\n"
-        "Перед тем как открыть меню, пожалуйста подпишись:\n\n"
-        "📢 На наш канал — там много полезного\n"
-        "💬 И на уютный чат — чтобы общаться с единомышленниками\n\n"
-        "Когда подпишешься — жми кнопку ниже ⬇️",
-        reply_markup=InlineKeyboardMarkup(buttons)
-    )
-
-def check_subs(update: Update, context: CallbackContext):
-    query = update.callback_query
-    user_id = query.from_user.id
-    bot = context.bot
-
-    # Проверка подписки
     try:
-        channel_status = bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id).status
-        group_status = bot.get_chat_member(f"@{GROUP_USERNAME}", user_id).status
+        is_channel_member = context.bot.get_chat_member(CHANNEL_ID, user.id).status in ["member", "administrator", "creator"]
+        is_group_member = context.bot.get_chat_member(GROUP_ID, user.id).status in ["member", "administrator", "creator"]
+    except:
+        is_channel_member = False
+        is_group_member = False
 
-        is_subscribed = channel_status not in ['left', 'kicked'] and group_status not in ['left', 'kicked']
-
-        if is_subscribed:
-            query.answer()
-            query.edit_message_text(
-                "Спасибо за подписку! 🌿\n\n"
-                "Теперь можно открыть главное меню:",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📂 Открыть меню", url="https://t.me/YogaWelcomebot")]
-                ])
-            )
-        else:
-            raise Exception("Not subscribed")
-
-    except Exception:
-        query.answer()
-        query.edit_message_text(
-            "Похоже, ты ещё не подписался на канал и чат 🙈\n\n"
-            "Подпишись и нажми кнопку ещё раз ⬇️",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📢 Подписаться на канал", url=f"https://t.me/{CHANNEL_USERNAME}")],
-                [InlineKeyboardButton("💬 Вступить в чат", url=f"https://t.me/{GROUP_USERNAME}")],
-                [InlineKeyboardButton("✅ Я подписался", callback_data="check_subs")]
-            ])
+    if is_channel_member and is_group_member:
+        keyboard = [[InlineKeyboardButton("👇 открыть меню", url="https://t.me/YogaWelcomeBot?start=go")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        update.message.reply_text(
+            "🌿 ты уже с нами!\n\nтеперь можно перейти в бот-меню 👇",
+            reply_markup=reply_markup
         )
+    else:
+        keyboard = [
+            [InlineKeyboardButton("📌 подписаться на канал", url="https://t.me/Doroga_k_Yoga")],
+            [InlineKeyboardButton("💬 вступить в чат", url="https://t.me/chatdorogakyoga")],
+            [InlineKeyboardButton("🔄 Я подписался", callback_data="check_subs")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        update.message.reply_text(
+            "👋 привет! прежде чем продолжить, пожалуйста, подпишись на наш канал и вступи в чат 🌿",
+            reply_markup=reply_markup
+        )
+
+def button(update, context):
+    query = update.callback_query
+    user = query.from_user
+    context.bot.answer_callback_query(query.id)
+
+    is_channel_member = context.bot.get_chat_member(CHANNEL_ID, user.id).status in ["member", "administrator", "creator"]
+    is_group_member = context.bot.get_chat_member(GROUP_ID, user.id).status in ["member", "administrator", "creator"]
+
+    if is_channel_member and is_group_member:
+        keyboard = [[InlineKeyboardButton("👇 открыть меню", url="https://t.me/YogaWelcomeBot?start=go")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        query.edit_message_text("🌿 отлично! теперь можно открыть меню:", reply_markup=reply_markup)
+    else:
+        query.edit_message_text("❗️ ты ещё не подписался на всё необходимое. Попробуй ещё раз.")
 
 def main():
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CallbackQueryHandler(check_subs))
+    dp.add_handler(telegram.ext.CallbackQueryHandler(button))
 
-    print("Приветственный бот запущен!")
+    print("Welcome Bot запущен!")
     updater.start_polling()
     updater.idle()
 
