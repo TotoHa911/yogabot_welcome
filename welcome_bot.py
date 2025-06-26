@@ -1,75 +1,63 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CallbackContext, CommandHandler, CallbackQueryHandler
-import os
+from telegram.ext import Updater, CommandHandler, CallbackContext
 import logging
-import requests
+import os
+import telegram.error
 
-# Токен от BotFather
+# ✅ Настройки
 TOKEN = "8128088643:AAFX6vFLh8HAlcm_IxBS4DJzGdbyirQAiWc"
+CHANNEL_ID = "@Doroga_k_Yoga"
+GROUP_ID = "@chatdorogakyoga"
+MENU_BOT_LINK = "https://t.me/YogaWelcomeBot"  # основной бот-меню
 
-# Ссылки на канал и группу
-CHANNEL_USERNAME = "Doroga_k_Yoga"
-GROUP_USERNAME = "chatdorogakyoga"
-
-# ID чата, куда бот будет направлять (вторая часть)
-BOT_MENU_LINK = "https://t.me/YogaWelcomebot?start=go"
-
-# Включаем логгирование
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# ✅ Включаем логирование
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
 def start(update: Update, context: CallbackContext):
-    user = update.effective_user
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔔 Подписаться на канал", url=f"https://t.me/{CHANNEL_USERNAME}")],
-        [InlineKeyboardButton("💬 Вступить в чат", url=f"https://t.me/{GROUP_USERNAME}")],
-        [InlineKeyboardButton("✅ Я подписался", callback_data="check")]
-    ])
+    user_id = update.effective_user.id
 
-    text = (
-        f"привет, {user.first_name or 'друг'} 🤍\n\n"
-        "добро пожаловать в пространство йоги и тёплого общения 🌿\n\n"
-        "чтобы открыть меню, пожалуйста:\n"
-        "1. подпишись на наш канал и группу\n"
-        "2. нажми кнопку ниже «я подписался»"
-    )
-    update.message.reply_text(text, reply_markup=keyboard)
+    try:
+        # Проверяем подписку на канал и чат
+        chat_status = context.bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id).status
+        group_status = context.bot.get_chat_member(chat_id=GROUP_ID, user_id=user_id).status
 
-def check_subscription(user_id):
-    def is_member(username):
-        url = f"https://api.telegram.org/bot{TOKEN}/getChatMember"
-        response = requests.get(url, params={"chat_id": f"@{username}", "user_id": user_id})
-        if response.ok:
-            status = response.json()["result"]["status"]
-            return status in ["member", "administrator", "creator"]
-        return False
-
-    return is_member(CHANNEL_USERNAME) and is_member(GROUP_USERNAME)
-
-def button_callback(update: Update, context: CallbackContext):
-    query = update.callback_query
-    user_id = query.from_user.id
-
-    if query.data == "check":
-        if check_subscription(user_id):
+        if chat_status in ['member', 'administrator', 'creator'] and group_status in ['member', 'administrator', 'creator']:
+            # ✅ Подписан — даём кнопку перехода в меню
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🌿 Открыть меню", url=BOT_MENU_LINK)]
+                [InlineKeyboardButton("🌿 Перейти в главное меню", url=MENU_BOT_LINK)]
             ])
-            query.edit_message_text(
-                "спасибо за подписку 🤍\nтеперь ты можешь открыть главное меню бота:",
+            update.message.reply_text(
+                "ура! ты с нами 🧘‍♀️\n\nвсё готово — можешь открыть главное меню и выбрать подходящую практику ✨",
                 reply_markup=keyboard
             )
         else:
-            query.answer("Подписка не найдена 🙈", show_alert=True)
+            # ⛔️ Не подписан — просим подписаться
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📌 Подписаться на канал", url=f"https://t.me/{CHANNEL_ID.lstrip('@')}")],
+                [InlineKeyboardButton("💬 Войти в чат", url=f"https://t.me/{GROUP_ID.lstrip('@')}")],
+                [InlineKeyboardButton("🔄 Я подписался", callback_data="check")]
+            ])
+            update.message.reply_text(
+                "прежде чем продолжим 🌿\n\nпожалуйста, подпишись на наш канал и чат — так мы будем на связи и ты не пропустишь полезности 🧘‍♀️",
+                reply_markup=keyboard
+            )
+
+    except telegram.error.Unauthorized:
+        update.message.reply_text("❌ Упс! Бот не может проверить твою подписку. Напиши нам вручную.")
+    except Exception as e:
+        logging.error(f"Ошибка: {e}")
+        update.message.reply_text("⚠️ Что-то пошло не так. Попробуй ещё раз.")
 
 def main():
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CallbackQueryHandler(button_callback))
 
-    print("Приветственный бот запущен!")
+    print("✨ Приветственный бот запущен!")
     updater.start_polling()
     updater.idle()
 
